@@ -128,3 +128,10 @@ export type CreateReplyResult = {
   comment: DiscussionComment;
   discussion: DiscussionLookup;
 };
+
+export type SteamAppDetails = {
+  genres: string[];
+  headerImage: string;
+  name: string;
+  shortDescription: string;
+};

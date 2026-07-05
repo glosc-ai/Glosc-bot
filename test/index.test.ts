@@ -86,6 +86,75 @@ describe("Glosc discussion bot", () => {
     expect(mock.pendingMocks()).toStrictEqual([]);
   });
 
+  test("appends Steam details to game request reply when a Steam link is present", async () => {
+    const steamMock = nock("https://store.steampowered.com")
+      .get("/api/appdetails")
+      .query({ appids: "3321460", l: "schinese" })
+      .reply(200, {
+        "3321460": {
+          data: {
+            genres: [{ description: "动作" }, { description: "RPG" }],
+            header_image: "https://cdn.example.com/header.jpg",
+            name: "红色沙漠",
+            short_description: "一款动作 RPG 游戏。",
+          },
+          success: true,
+        },
+      });
+
+    const mock = mockInstallationToken().post(
+      "/graphql",
+      expectAddDiscussionComment({
+        bodyIncludes: [
+          "感谢您提交的游戏申请.",
+          "**红色沙漠**",
+          "![封面](https://cdn.example.com/header.jpg)",
+          "类型: 动作, RPG",
+        ],
+        discussionId: discussionNodeId,
+        replyToId: null,
+      }),
+    ).reply(200, addCommentResponse());
+
+    await probot.receive({
+      name: "discussion",
+      payload: createDiscussionPayload(
+        "新游戏请求: Elden Ring",
+        "游戏官网/商店/Steam 地址：https://store.steampowered.com/app/3321460/_/",
+      ),
+    } as any);
+
+    expect(mock.pendingMocks()).toStrictEqual([]);
+    expect(steamMock.pendingMocks()).toStrictEqual([]);
+  });
+
+  test("falls back to plain reply when the Steam API call fails", async () => {
+    const steamMock = nock("https://store.steampowered.com")
+      .get("/api/appdetails")
+      .query({ appids: "3321460", l: "schinese" })
+      .reply(500);
+
+    const mock = mockInstallationToken().post(
+      "/graphql",
+      expectAddDiscussionComment({
+        bodyIncludes: "感谢您提交的游戏申请.",
+        discussionId: discussionNodeId,
+        replyToId: null,
+      }),
+    ).reply(200, addCommentResponse());
+
+    await probot.receive({
+      name: "discussion",
+      payload: createDiscussionPayload(
+        "新游戏请求: Elden Ring",
+        "游戏官网/商店/Steam 地址：https://store.steampowered.com/app/3321460/_/",
+      ),
+    } as any);
+
+    expect(mock.pendingMocks()).toStrictEqual([]);
+    expect(steamMock.pendingMocks()).toStrictEqual([]);
+  });
+
   test("still replies to game requests when generic welcome is disabled", async () => {
     process.env.DISCUSSION_REPLY_ON_CREATED = "false";
     const mock = mockInstallationToken().post(
@@ -431,10 +500,13 @@ function addCommentResponse() {
   };
 }
 
-function createDiscussionPayload(title = "How should we handle docs?") {
+function createDiscussionPayload(
+  title = "How should we handle docs?",
+  body?: string,
+) {
   return {
     action: "created",
-    discussion: createDiscussion(title),
+    discussion: createDiscussion(title, body),
     installation: {
       id: 2,
     },
@@ -473,12 +545,15 @@ function createDiscussionCommentPayload(body: string) {
   };
 }
 
-function createDiscussion(title = "How should we handle docs?") {
+function createDiscussion(
+  title = "How should we handle docs?",
+  body = "Discussion body",
+) {
   return {
     answer_chosen_at: null,
     answer_chosen_by: null,
     answer_html_url: null,
-    body: "Discussion body",
+    body,
     category: {
       id: 99,
       is_answerable: true,

@@ -12,9 +12,10 @@ export default (app: Probot, options: ApplicationFunctionOptions) => {
 
     app.on("discussion.created", async (context) => {
         const config = getConfig();
-        const replyBody = getDiscussionCreatedReplyBody(
+        const replyBody = await getDiscussionCreatedReplyBody(
             context.payload.discussion.title,
             config,
+            context.payload.discussion.body ?? "",
         );
 
         if (!replyBody) {
