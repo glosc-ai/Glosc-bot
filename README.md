@@ -177,7 +177,9 @@ docker run -e APP_ID=<app-id> -e PRIVATE_KEY=<pem-value> glosc-bot
 
 ## Deployment
 
-On every push to `main`, [.github/workflows/deploy.yml](.github/workflows/deploy.yml) runs the test suite, builds the Docker image, and pushes it to the GitHub Container Registry as [`ghcr.io/glosc-ai/glosc-bot:latest`](https://github.com/glosc-ai/Glosc-bot/pkgs/container/glosc-bot) (and `:sha-<commit>`). Pull requests only run the test/build step.
+[.github/workflows/deploy.yml](.github/workflows/deploy.yml) runs the test suite on every push and pull request. When you publish a [GitHub Release](https://github.com/glosc-ai/Glosc-bot/releases), it also builds the Docker image and pushes it to the GitHub Container Registry as [`ghcr.io/glosc-ai/glosc-bot`](https://github.com/glosc-ai/Glosc-bot/pkgs/container/glosc-bot), tagged with the release version (e.g. `1.2.3` and `1.2`) and `latest`.
+
+To cut a new release: tag the commit (e.g. `v1.2.3`) and publish a GitHub Release from it — the workflow picks up the semver tag automatically.
 
 To run the latest image on a server:
 
