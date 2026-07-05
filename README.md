@@ -1,6 +1,8 @@
 # glosc-bot
 
 > A GitHub App built with [Probot](https://github.com/probot/probot) for replying to, fetching, and managing GitHub Discussions.
+>
+> Repository: [glosc-ai/Glosc-bot](https://github.com/glosc-ai/Glosc-bot)
 
 ## Features
 
@@ -47,6 +49,7 @@ Inside a GitHub Discussion comment, users can run:
   我已帮你通知 @3DMXM 了, 当他看到的时候会尽快处理您的申请.
   ```
 
+  If the Discussion body has a `游戏官网/商店/Steam 地址` line pointing to a `store.steampowered.com/app/<id>` URL, the bot looks up that app on the Steam storefront API and appends the game's name, header image, genres, and short description to the reply. Any lookup failure (missing link, network error, unknown app) silently falls back to the plain-text reply above.
 - Disable the welcome reply with `DISCUSSION_REPLY_ON_CREATED=false`.
 - Override the welcome text with `DISCUSSION_WELCOME_BODY`.
 
@@ -133,10 +136,12 @@ src/config.ts                        # environment configuration
 src/constants.ts                     # shared constants
 src/graphql.ts                       # GraphQL query and mutation strings
 src/types.ts                         # shared TypeScript types
+src/auto-replies/*                   # discussion.created reply logic
 src/commands/*                       # discussion comment commands
 src/formatters/*                     # markdown response formatting
 src/github/*                         # GitHub API helpers
 src/http/*                           # external HTTP API helpers and routes
+src/steam/*                          # Steam storefront API client
 src/utils/*                          # small generic utilities
 ```
 
@@ -169,6 +174,24 @@ docker build -t glosc-bot .
 # 2. Start container
 docker run -e APP_ID=<app-id> -e PRIVATE_KEY=<pem-value> glosc-bot
 ```
+
+## Deployment
+
+On every push to `main`, [.github/workflows/deploy.yml](.github/workflows/deploy.yml) runs the test suite, builds the Docker image, and pushes it to the GitHub Container Registry as [`ghcr.io/glosc-ai/glosc-bot:latest`](https://github.com/glosc-ai/Glosc-bot/pkgs/container/glosc-bot) (and `:sha-<commit>`). Pull requests only run the test/build step.
+
+To run the latest image on a server:
+
+```sh
+docker pull ghcr.io/glosc-ai/glosc-bot:latest
+docker run -d --restart unless-stopped \
+  -e APP_ID=<app-id> \
+  -e PRIVATE_KEY="$(cat private-key.pem)" \
+  -e WEBHOOK_SECRET=<webhook-secret> \
+  -p 3000:3000 \
+  ghcr.io/glosc-ai/glosc-bot:latest
+```
+
+Set up a way to keep the running container in sync with the registry, e.g. a cron job running `docker pull && docker up -d` or a tool like [Watchtower](https://containrrr.dev/watchtower/).
 
 ## Contributing
 
