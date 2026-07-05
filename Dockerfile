@@ -11,5 +11,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 RUN npm cache clean --force
 ENV NODE_ENV="production"
+ENV HOST="0.0.0.0"
 COPY --from=build /usr/src/app/lib ./lib
+EXPOSE 3000
 CMD [ "npm", "start" ]
