@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import nock from "nock";
 import { Probot, ProbotOctokit } from "probot";
@@ -15,11 +16,16 @@ const privateKey = fs.readFileSync(
 
 const discussionNodeId = "D_kwDOExample";
 const commandCommentNodeId = "DC_kwDOCommand";
+let httpHandler: any;
 
 describe("Glosc discussion bot", () => {
   let probot: Probot;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    delete process.env.DISCUSSION_API_TOKEN;
+    delete process.env.DISCUSSION_REPLY_ON_CREATED;
+    delete process.env.DISCUSSION_WELCOME_BODY;
+
     nock.disableNetConnect();
     probot = new Probot({
       appId: 123,
@@ -30,10 +36,18 @@ describe("Glosc discussion bot", () => {
         throttle: { enabled: false },
       })),
     });
-    probot.load(myProbotApp);
+    httpHandler = undefined;
+    await probot.load(myProbotApp, {
+      addHandler: (handler) => {
+        httpHandler = handler;
+      },
+      cwd: path.join(__dirname, ".."),
+    });
   });
 
   test("replies when a discussion is created", async () => {
+    process.env.DISCUSSION_WELCOME_BODY = "Thanks for starting this discussion.";
+
     const mock = mockInstallationToken().post(
       "/graphql",
       expectAddDiscussionComment({
@@ -46,6 +60,46 @@ describe("Glosc discussion bot", () => {
     await probot.receive({
       name: "discussion",
       payload: createDiscussionPayload(),
+    } as any);
+
+    expect(mock.pendingMocks()).toStrictEqual([]);
+  });
+
+  test("replies with game request message when discussion title matches", async () => {
+    const mock = mockInstallationToken().post(
+      "/graphql",
+      expectAddDiscussionComment({
+        bodyIncludes: [
+          "感谢您提交的游戏申请.",
+          "我已帮你通知 @3DMXM 了, 当他看到的时候会尽快处理您的申请.",
+        ],
+        discussionId: discussionNodeId,
+        replyToId: null,
+      }),
+    ).reply(200, addCommentResponse());
+
+    await probot.receive({
+      name: "discussion",
+      payload: createDiscussionPayload("新游戏请求: Elden Ring"),
+    } as any);
+
+    expect(mock.pendingMocks()).toStrictEqual([]);
+  });
+
+  test("still replies to game requests when generic welcome is disabled", async () => {
+    process.env.DISCUSSION_REPLY_ON_CREATED = "false";
+    const mock = mockInstallationToken().post(
+      "/graphql",
+      expectAddDiscussionComment({
+        bodyIncludes: "感谢您提交的游戏申请.",
+        discussionId: discussionNodeId,
+        replyToId: null,
+      }),
+    ).reply(200, addCommentResponse());
+
+    await probot.receive({
+      name: "discussion",
+      payload: createDiscussionPayload("新游戏请求: Hollow Knight"),
     } as any);
 
     expect(mock.pendingMocks()).toStrictEqual([]);
@@ -217,7 +271,78 @@ describe("Glosc discussion bot", () => {
     expect(mock.pendingMocks()).toStrictEqual([]);
   });
 
+  test("creates a discussion reply through the external API", async () => {
+    process.env.DISCUSSION_API_TOKEN = "secret";
+    const mock = nock("https://api.github.com")
+      .get("/repos/hiimbex/testing-things/installation")
+      .reply(200, {
+        id: 2,
+      })
+      .post("/app/installations/2/access_tokens")
+      .reply(200, {
+        permissions: {
+          discussions: "write",
+          metadata: "read",
+        },
+        token: "test",
+      })
+      .post("/graphql", (body: any) => {
+        expect(body.query).toContain("query GetDiscussionByNumber");
+        expect(body.variables).toMatchObject({
+          number: 7,
+          owner: "hiimbex",
+          repo: "testing-things",
+        });
+        return true;
+      })
+      .reply(200, {
+        data: {
+          repository: {
+            discussion: {
+              id: discussionNodeId,
+              number: 7,
+              title: "How should we handle docs?",
+              url: "https://github.com/hiimbex/testing-things/discussions/7",
+            },
+          },
+        },
+      })
+      .post(
+        "/graphql",
+        expectAddDiscussionComment({
+          bodyIncludes: "External project reply",
+          discussionId: discussionNodeId,
+          replyToId: commandCommentNodeId,
+        }),
+      )
+      .reply(200, addCommentResponse());
+
+    const response = await callHttpHandler({
+      body: {
+        body: "External project reply",
+        discussionNumber: 7,
+        owner: "hiimbex",
+        replyToId: commandCommentNodeId,
+        repo: "testing-things",
+      },
+      headers: {
+        authorization: "Bearer secret",
+      },
+      method: "POST",
+      url: "/api/discussions/replies",
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.json.comment).toMatchObject({
+      id: "DC_kwDOReply",
+    });
+    expect(mock.pendingMocks()).toStrictEqual([]);
+  });
+
   afterEach(() => {
+    delete process.env.DISCUSSION_API_TOKEN;
+    delete process.env.DISCUSSION_REPLY_ON_CREATED;
+    delete process.env.DISCUSSION_WELCOME_BODY;
     nock.cleanAll();
     nock.enableNetConnect();
   });
@@ -233,6 +358,40 @@ function mockInstallationToken(): nock.Scope {
       },
       token: "test",
     });
+}
+
+async function callHttpHandler(options: {
+  body?: unknown;
+  headers?: Record<string, string>;
+  method: string;
+  url: string;
+}) {
+  let responseBody = "";
+  let responseStatus = 0;
+  const req = Readable.from(
+    options.body === undefined ? [] : [JSON.stringify(options.body)],
+  ) as any;
+  const res = {
+    end(chunk: unknown) {
+      responseBody = chunk ? String(chunk) : "";
+    },
+    writeHead(status: number) {
+      responseStatus = status;
+    },
+  } as any;
+
+  req.headers = options.headers ?? {};
+  req.method = options.method;
+  req.url = options.url;
+
+  const handled = await httpHandler(req, res);
+
+  expect(handled).toBe(true);
+
+  return {
+    json: responseBody ? JSON.parse(responseBody) : null,
+    status: responseStatus,
+  };
 }
 
 function expectAddDiscussionComment(options: {
@@ -272,10 +431,10 @@ function addCommentResponse() {
   };
 }
 
-function createDiscussionPayload() {
+function createDiscussionPayload(title = "How should we handle docs?") {
   return {
     action: "created",
-    discussion: createDiscussion(),
+    discussion: createDiscussion(title),
     installation: {
       id: 2,
     },
@@ -314,7 +473,7 @@ function createDiscussionCommentPayload(body: string) {
   };
 }
 
-function createDiscussion() {
+function createDiscussion(title = "How should we handle docs?") {
   return {
     answer_chosen_at: null,
     answer_chosen_by: null,
@@ -334,7 +493,7 @@ function createDiscussion() {
     node_id: discussionNodeId,
     number: 7,
     state: "open",
-    title: "How should we handle docs?",
+    title,
     updated_at: "2026-07-06T00:00:00Z",
     user: {
       id: 1,

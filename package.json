@@ -2,7 +2,7 @@
   "name": "glosc-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "A Probot app",
+  "description": "A Probot app for GitHub Discussions",
   "author": "小莫",
   "license": "ISC",
   "homepage": "https://github.com//",
