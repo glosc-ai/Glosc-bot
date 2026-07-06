@@ -32,7 +32,11 @@ export function getConfig(): BotConfig {
             ),
             welcomeBody:
                 process.env.DISCUSSION_WELCOME_BODY?.trim() ||
-                ["感谢您发起这次讨论。", "", "维护人员会尽快查看。"].join("\n"),
+                [
+                    "感谢您提交的游戏申请.",
+                    "",
+                    "我已帮你通知 @3DMXM 了, 当他看到的时候会尽快处理您的申请.",
+                ].join("\n"),
         };
     }
 }

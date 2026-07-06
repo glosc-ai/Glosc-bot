@@ -29,6 +29,7 @@ describe("Glosc discussion bot", () => {
     nock.disableNetConnect();
     probot = new Probot({
       appId: 123,
+      logLevel: "fatal",
       privateKey,
       Octokit: ProbotOctokit.defaults((instanceOptions: object) => ({
         ...instanceOptions,
@@ -52,6 +53,27 @@ describe("Glosc discussion bot", () => {
       "/graphql",
       expectAddDiscussionComment({
         bodyIncludes: "Thanks for starting this discussion.",
+        discussionId: discussionNodeId,
+        replyToId: null,
+      }),
+    ).reply(200, addCommentResponse());
+
+    await probot.receive({
+      name: "discussion",
+      payload: createDiscussionPayload(),
+    } as any);
+
+    expect(mock.pendingMocks()).toStrictEqual([]);
+  });
+
+  test("uses the game request message as the default fallback reply", async () => {
+    const mock = mockInstallationToken().post(
+      "/graphql",
+      expectAddDiscussionComment({
+        bodyIncludes: [
+          "感谢您提交的游戏申请.",
+          "我已帮你通知 @3DMXM 了, 当他看到的时候会尽快处理您的申请.",
+        ],
         discussionId: discussionNodeId,
         replyToId: null,
       }),
@@ -155,6 +177,21 @@ describe("Glosc discussion bot", () => {
     expect(steamMock.pendingMocks()).toStrictEqual([]);
   });
 
+  test("does not fail the webhook when an automatic discussion reply fails", async () => {
+    const mock = mockInstallationToken().post("/graphql").reply(500, {
+      message: "GitHub GraphQL is unavailable",
+    });
+
+    await expect(
+      probot.receive({
+        name: "discussion",
+        payload: createDiscussionPayload(),
+      } as any),
+    ).resolves.toBeUndefined();
+
+    expect(mock.pendingMocks()).toStrictEqual([]);
+  });
+
   test("still replies to game requests when generic welcome is disabled", async () => {
     process.env.DISCUSSION_REPLY_ON_CREATED = "false";
     const mock = mockInstallationToken().post(
@@ -238,6 +275,27 @@ describe("Glosc discussion bot", () => {
       name: "discussion_comment",
       payload: createDiscussionCommentPayload("/glosc info"),
     } as any);
+
+    expect(mock.pendingMocks()).toStrictEqual([]);
+  });
+
+  test("does not fail the webhook when a command and its fallback reply fail", async () => {
+    const mock = mockInstallationToken()
+      .post("/graphql")
+      .reply(500, {
+        message: "Discussion lookup failed",
+      })
+      .post("/graphql")
+      .reply(500, {
+        message: "Fallback reply failed",
+      });
+
+    await expect(
+      probot.receive({
+        name: "discussion_comment",
+        payload: createDiscussionCommentPayload("/glosc info"),
+      } as any),
+    ).resolves.toBeUndefined();
 
     expect(mock.pendingMocks()).toStrictEqual([]);
   });

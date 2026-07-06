@@ -1,5 +1,7 @@
 import type { Context } from "probot";
 
+export type DiscussionCreatedContext = Context<"discussion.created">;
+
 export type DiscussionCommentCreatedContext = Context<"discussion_comment.created">;
 
 export type BotConfig = {

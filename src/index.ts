@@ -6,11 +6,27 @@ import { replyToCommand } from "./commands/reply-to-command.js";
 import { getConfig } from "./config.js";
 import { addDiscussionComment } from "./github/add-discussion-comment.js";
 import { createDiscussionReplyApiHandler } from "./http/create-discussion-reply-api-handler.js";
+import type {
+    DiscussionCommentCreatedContext,
+    DiscussionCreatedContext,
+} from "./types.js";
 
 export default (app: Probot, options: ApplicationFunctionOptions) => {
     options.addHandler(createDiscussionReplyApiHandler(app));
 
     app.on("discussion.created", async (context) => {
+        await handleDiscussionCreated(context);
+    });
+
+    app.on("discussion_comment.created", async (context) => {
+        await handleDiscussionCommentCreated(context);
+    });
+};
+
+async function handleDiscussionCreated(
+    context: DiscussionCreatedContext,
+): Promise<void> {
+    try {
         const config = getConfig();
         const replyBody = await getDiscussionCreatedReplyBody(
             context.payload.discussion.title,
@@ -27,9 +43,18 @@ export default (app: Probot, options: ApplicationFunctionOptions) => {
             context.payload.discussion.node_id,
             replyBody,
         );
-    });
+    } catch (error) {
+        context.log.error(
+            { err: error },
+            "Failed to handle discussion.created webhook",
+        );
+    }
+}
 
-    app.on("discussion_comment.created", async (context) => {
+async function handleDiscussionCommentCreated(
+    context: DiscussionCommentCreatedContext,
+): Promise<void> {
+    try {
         if (context.isBot) {
             return;
         }
@@ -47,11 +72,26 @@ export default (app: Probot, options: ApplicationFunctionOptions) => {
         try {
             await handleCommand(context, command, config);
         } catch (error) {
-            context.log.error({ error }, "Failed to handle discussion command");
-            await replyToCommand(
-                context,
-                "I could not complete that discussion command. Check the bot logs for details.",
+            context.log.error(
+                { err: error },
+                "Failed to handle discussion command",
             );
+            try {
+                await replyToCommand(
+                    context,
+                    "I could not complete that discussion command. Check the bot logs for details.",
+                );
+            } catch (replyError) {
+                context.log.error(
+                    { err: replyError },
+                    "Failed to send discussion command failure reply",
+                );
+            }
         }
-    });
-};
+    } catch (error) {
+        context.log.error(
+            { err: error },
+            "Failed to handle discussion_comment.created webhook",
+        );
+    }
+}
