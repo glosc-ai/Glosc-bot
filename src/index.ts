@@ -6,6 +6,7 @@ import { replyToCommand } from "./commands/reply-to-command.js";
 import { getConfig } from "./config.js";
 import { addDiscussionComment } from "./github/add-discussion-comment.js";
 import { createDiscussionReplyApiHandler } from "./http/create-discussion-reply-api-handler.js";
+import { createStatusPageHandler } from "./http/status-page-handler.js";
 import { createUpdateDiscussionReplyApiHandler } from "./http/update-discussion-reply-api-handler.js";
 import type {
     DiscussionCommentCreatedContext,
@@ -13,6 +14,7 @@ import type {
 } from "./types.js";
 
 export default (app: Probot, options: ApplicationFunctionOptions) => {
+    options.addHandler(createStatusPageHandler());
     options.addHandler(createDiscussionReplyApiHandler(app));
     options.addHandler(createUpdateDiscussionReplyApiHandler(app));
 

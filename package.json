@@ -1,6 +1,6 @@
 {
     "name": "glosc-bot",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "private": true,
     "description": "A Probot app for GitHub Discussions",
     "author": "小莫",
@@ -13,7 +13,7 @@
     ],
     "scripts": {
         "build": "tsc",
-        "start": "probot run ./lib/index.js",
+        "start": "node ./lib/start.js",
         "test": "vitest"
     },
     "dependencies": {

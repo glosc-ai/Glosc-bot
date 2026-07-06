@@ -300,6 +300,16 @@ describe("Glosc discussion bot", () => {
     expect(mock.pendingMocks()).toStrictEqual([]);
   });
 
+  test("serves the Probot status page", async () => {
+    const response = await callHttpHandler({
+      method: "GET",
+      url: "/probot",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain("glosc-bot");
+  });
+
   test("lists latest discussions from a command", async () => {
     const mock = mockInstallationToken()
       .post("/graphql", (body: any) => {
@@ -569,9 +579,17 @@ async function callHttpHandler(options: {
   expect(handled).toBe(true);
 
   return {
-    json: responseBody ? JSON.parse(responseBody) : null,
+    json:
+      responseBody && isJsonResponse(responseBody)
+        ? JSON.parse(responseBody)
+        : null,
     status: responseStatus,
+    text: responseBody,
   };
+}
+
+function isJsonResponse(body: string): boolean {
+  return body.startsWith("{") || body.startsWith("[");
 }
 
 function expectAddDiscussionComment(options: {
