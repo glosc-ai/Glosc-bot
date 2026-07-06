@@ -28,7 +28,7 @@ export function sendJson(
 ): void {
   res.writeHead(status, {
     "access-control-allow-headers": "authorization, content-type, x-glosc-token",
-    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-methods": "POST, PATCH, OPTIONS",
     "access-control-allow-origin": "*",
     "content-type": "application/json; charset=utf-8",
   });

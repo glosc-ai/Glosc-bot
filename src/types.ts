@@ -131,6 +131,32 @@ export type CreateReplyResult = {
   discussion: DiscussionLookup;
 };
 
+export type UpdateDiscussionCommentResponse = {
+  updateDiscussionComment: {
+    comment: DiscussionComment | null;
+  } | null;
+};
+
+export type UpdateReplyRequest = {
+  body?: unknown;
+  commentId?: unknown;
+  installationId?: unknown;
+  owner?: unknown;
+  repo?: unknown;
+};
+
+export type UpdateReplyInput = {
+  body: string;
+  commentId: string;
+  installationId: number | null;
+  owner: string;
+  repo: string;
+};
+
+export type UpdateReplyResult = {
+  comment: DiscussionComment;
+};
+
 export type SteamAppDetails = {
   genres: string[];
   headerImage: string;

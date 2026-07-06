@@ -6,6 +6,7 @@ import { replyToCommand } from "./commands/reply-to-command.js";
 import { getConfig } from "./config.js";
 import { addDiscussionComment } from "./github/add-discussion-comment.js";
 import { createDiscussionReplyApiHandler } from "./http/create-discussion-reply-api-handler.js";
+import { createUpdateDiscussionReplyApiHandler } from "./http/update-discussion-reply-api-handler.js";
 import type {
     DiscussionCommentCreatedContext,
     DiscussionCreatedContext,
@@ -13,6 +14,7 @@ import type {
 
 export default (app: Probot, options: ApplicationFunctionOptions) => {
     options.addHandler(createDiscussionReplyApiHandler(app));
+    options.addHandler(createUpdateDiscussionReplyApiHandler(app));
 
     app.on("discussion.created", async (context) => {
         await handleDiscussionCreated(context);

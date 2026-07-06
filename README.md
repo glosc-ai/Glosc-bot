@@ -19,9 +19,10 @@ This bot currently focuses on GitHub Discussions. It provides two main groups of
 
 ### External HTTP API
 
-Other projects can call the bot to create replies in GitHub Discussions.
+Other projects can call the bot to create and update replies in GitHub Discussions.
 
 - Create a reply under a specific Discussion with `POST /api/discussions/replies`.
+- Update an existing Discussion reply with `PATCH /api/discussions/replies/:commentId`.
 - Locate the Discussion by `owner`, `repo`, and `discussionNumber`.
 - Or pass `discussionId` directly if the caller already has the GitHub Discussion node ID.
 - Optionally pass `replyToId` to create a threaded reply under an existing Discussion comment.
@@ -89,6 +90,35 @@ Successful response:
     "id": "D_...",
     "number": 7,
     "title": "Discussion title",
+    "url": "https://github.com/..."
+  }
+}
+```
+
+To update a bot-created Discussion comment, call:
+
+```http
+PATCH /api/discussions/replies/<discussion-comment-node-id>
+Authorization: Bearer <DISCUSSION_API_TOKEN>
+Content-Type: application/json
+```
+
+```json
+{
+  "owner": "org-or-user",
+  "repo": "repo-name",
+  "body": "Updated reply body"
+}
+```
+
+You can also pass `commentId` in the JSON body instead of the path. `installationId` is optional.
+
+Successful response:
+
+```json
+{
+  "comment": {
+    "id": "DC_...",
     "url": "https://github.com/..."
   }
 }

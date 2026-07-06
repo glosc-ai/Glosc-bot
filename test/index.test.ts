@@ -16,7 +16,7 @@ const privateKey = fs.readFileSync(
 
 const discussionNodeId = "D_kwDOExample";
 const commandCommentNodeId = "DC_kwDOCommand";
-let httpHandler: any;
+let httpHandlers: any[];
 
 describe("Glosc discussion bot", () => {
   let probot: Probot;
@@ -37,10 +37,10 @@ describe("Glosc discussion bot", () => {
         throttle: { enabled: false },
       })),
     });
-    httpHandler = undefined;
+    httpHandlers = [];
     await probot.load(myProbotApp, {
       addHandler: (handler) => {
-        httpHandler = handler;
+        httpHandlers.push(handler);
       },
       cwd: path.join(__dirname, ".."),
     });
@@ -466,6 +466,51 @@ describe("Glosc discussion bot", () => {
     expect(mock.pendingMocks()).toStrictEqual([]);
   });
 
+  test("updates a discussion reply through the external API", async () => {
+    process.env.DISCUSSION_API_TOKEN = "secret";
+    const mock = nock("https://api.github.com")
+      .get("/repos/hiimbex/testing-things/installation")
+      .reply(200, {
+        id: 2,
+      })
+      .post("/app/installations/2/access_tokens")
+      .reply(200, {
+        permissions: {
+          discussions: "write",
+          metadata: "read",
+        },
+        token: "test",
+      })
+      .post("/graphql", (body: any) => {
+        expect(body.query).toContain("mutation UpdateDiscussionComment");
+        expect(body.variables).toMatchObject({
+          body: "Updated project reply",
+          commentId: "DC_kwDOReply",
+        });
+        return true;
+      })
+      .reply(200, updateCommentResponse());
+
+    const response = await callHttpHandler({
+      body: {
+        body: "Updated project reply",
+        owner: "hiimbex",
+        repo: "testing-things",
+      },
+      headers: {
+        authorization: "Bearer secret",
+      },
+      method: "PATCH",
+      url: "/api/discussions/replies/DC_kwDOReply",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json.comment).toMatchObject({
+      id: "DC_kwDOReply",
+    });
+    expect(mock.pendingMocks()).toStrictEqual([]);
+  });
+
   afterEach(() => {
     delete process.env.DISCUSSION_API_TOKEN;
     delete process.env.DISCUSSION_REPLY_ON_CREATED;
@@ -511,7 +556,15 @@ async function callHttpHandler(options: {
   req.method = options.method;
   req.url = options.url;
 
-  const handled = await httpHandler(req, res);
+  let handled = false;
+
+  for (const handler of httpHandlers) {
+    handled = await handler(req, res);
+
+    if (handled) {
+      break;
+    }
+  }
 
   expect(handled).toBe(true);
 
@@ -549,6 +602,19 @@ function addCommentResponse() {
   return {
     data: {
       addDiscussionComment: {
+        comment: {
+          id: "DC_kwDOReply",
+          url: "https://github.com/hiimbex/testing-things/discussions/7#discussioncomment-2",
+        },
+      },
+    },
+  };
+}
+
+function updateCommentResponse() {
+  return {
+    data: {
+      updateDiscussionComment: {
         comment: {
           id: "DC_kwDOReply",
           url: "https://github.com/hiimbex/testing-things/discussions/7#discussioncomment-2",

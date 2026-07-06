@@ -19,6 +19,22 @@ export const ADD_DISCUSSION_COMMENT = `
   }
 `;
 
+export const UPDATE_DISCUSSION_COMMENT = `
+  mutation UpdateDiscussionComment($commentId: ID!, $body: String!) {
+    updateDiscussionComment(
+      input: {
+        commentId: $commentId
+        body: $body
+      }
+    ) {
+      comment {
+        id
+        url
+      }
+    }
+  }
+`;
+
 export const GET_DISCUSSION_BY_NUMBER = `
   query GetDiscussionByNumber($owner: String!, $repo: String!, $number: Int!) {
     repository(owner: $owner, name: $repo) {
